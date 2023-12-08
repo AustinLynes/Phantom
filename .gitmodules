@@ -4,6 +4,6 @@
 [submodule "Vendor/imgui"]
 	path = Vendor/imgui
 	url = https://github.com/AustinLynes/imgui
-[submodule "stb"]
-	path = stb
+[submodule "Vendor/stb"]
+	path = Vendor/stb
 	url = https://github.com/AustinLynes/stb
