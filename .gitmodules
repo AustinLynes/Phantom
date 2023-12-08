@@ -1,0 +1,6 @@
+[submodule "Vendor/glfw"]
+	path = Vendor/glfw
+	url = https://github.com/AustinLynes/glfw
+[submodule "Vendor/imgui"]
+	path = Vendor/imgui
+	url = https://github.com/AustinLynes/imgui
