@@ -9,13 +9,10 @@ namespace Core {
 	enum class ImageFormat
 	{
 		None = 0,
+		R8,
 		RGBA,
 		RGBA32F
 	};
-
-	namespace Utils {
-		
-	}
 
 	class Image
 	{
@@ -33,7 +30,9 @@ namespace Core {
 		uint32_t GetWidth() const { return m_Width; }
 		uint32_t GetHeight() const { return m_Height; }
 
-		VkImageView Get() { return m_ImageView; }
+		VkImage GetImage() { return m_Image; }
+		VkImageView GetView() { return m_ImageView; }
+
 	public:/* STATIC */
 		static uint32_t GetVulkanMemoryType(VkMemoryPropertyFlags properties, uint32_t type_bits);
 		static uint32_t BytesPerPixel(ImageFormat format);
@@ -61,4 +60,7 @@ namespace Core {
 		std::string m_Filepath;
 	};
 
+
+
+	
 }

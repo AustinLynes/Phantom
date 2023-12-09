@@ -10,9 +10,7 @@
 #include "stb_image.h"
 
 namespace Core {
-	void check_vk_result(VkResult error);
-
-
+		void check_vk_result(VkResult error);
 
 		uint32_t Image::GetVulkanMemoryType(VkMemoryPropertyFlags properties, uint32_t type_bits)
 		{
@@ -31,6 +29,7 @@ namespace Core {
 		{
 			switch (format)
 			{
+			case ImageFormat::R8:
 			case ImageFormat::RGBA:    return 4;
 			case ImageFormat::RGBA32F: return 16;
 			}
@@ -43,6 +42,7 @@ namespace Core {
 			{
 			case ImageFormat::RGBA:    return VK_FORMAT_R8G8B8A8_UNORM;
 			case ImageFormat::RGBA32F: return VK_FORMAT_R32G32B32A32_SFLOAT;
+			case ImageFormat::R8:		return VK_FORMAT_R8_UINT;
 			}
 			return (VkFormat)0;
 		}

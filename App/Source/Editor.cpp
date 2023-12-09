@@ -4,6 +4,8 @@
 #include "Core/EntryPoint.h"
 #include <Core/Utils/Image.h>
 
+#include "Core/Graphics3D/Framebuffer.h"
+
 class DemoLayer : public Core::Layer {
 public:
 	virtual void OnUIRender() override {
@@ -13,36 +15,30 @@ public:
 
 class SceneEditorLayer : public Core::Layer {
 public:
+	virtual void OnAttach() override {
+		framebuffer = new Core::Graphics::Framebuffer(width, height);
+	}
+	virtual void OnUpdate(float ts) override {
+		framebuffer->Render();
+	}
+	
 	virtual void OnUIRender() override
 	{
 		if (ImGui::Begin("Scene")) {
 			
-			const auto format = Core::ImageFormat::RGBA32F;
-			const uint32_t width = 32u, height = 16u;
-			const uint32_t bytesPerPixel = Core::Image::BytesPerPixel(format);
-			struct C {
-				float r;
-				float g;
-				float b;
-				float a;
-			};
-			int bufferSize = width * height;
-			C* buffer = new C[bufferSize] {0};
-
-			for (size_t i = 0; i < bufferSize; i++)
-			{
-				buffer[i] = { 1.0f, 1.0f, 1.0f, 1.0f };
-			}
-
-			auto image = Core::Image(width, height, format, (void*)buffer);
-			ImGui::Image(ImTextureID(image.GetDescriptorSet()), ImGui::GetContentRegionAvail());
 			
-
-			delete[] buffer;
-
+			ImGui::Image(ImTextureID(framebuffer->GetColorBuffer()->GetDescriptorSet()), {(float)framebuffer->width, (float)framebuffer->height});
+			
+			
 			ImGui::End();
 		}
 	} 
+
+	uint32_t width = 1024;
+	uint32_t height = 1024;
+
+	Core::Graphics::Framebuffer* framebuffer;
+
 };
 
 Core::Application* Core::CreateApplication(int argc, char** argv) {
