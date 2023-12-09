@@ -2,18 +2,32 @@ project "Core"
    kind "StaticLib"
    language "C++"
    cppdialect "C++20"
-   targetdir "Binaries/%{cfg.buildcfg}"
+   targetdir "Build/%{cfg.buildcfg}"
    staticruntime "off"
 
-   files { "Source/**.h", "Source/**.cpp" }
+   files { "Source/**.h", "Source/**.cpp",  "Source/**.impl.h" }
 
    includedirs
    {
-      "Source"
+      "Source",
+
+      "../vendor/imgui/",
+      "../vendor/glfw/include",
+      "../vendor/stb",
+      "../vendor/glm",
+
+      "%{IncludeDir.VulkanSDK}",
    }
 
-   targetdir ("../Binaries/" .. OutputDir .. "/%{prj.name}")
-   objdir ("../Binaries/Intermediates/" .. OutputDir .. "/%{prj.name}")
+    links
+    {
+        "GLFW",
+        "ImGui",
+
+        "%{Library.Vulkan}",
+    }
+   targetdir ("../Build/" .. OutputDir .. "/%{prj.name}")
+   objdir ("../Build/Intermediates/" .. OutputDir .. "/%{prj.name}")
 
    filter "system:windows"
        systemversion "latest"

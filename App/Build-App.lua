@@ -2,26 +2,32 @@ project "App"
    kind "ConsoleApp"
    language "C++"
    cppdialect "C++20"
-   targetdir "Binaries/%{cfg.buildcfg}"
+   targetdir "Build/%{cfg.buildcfg}"
    staticruntime "off"
 
-   files { "Source/**.h", "Source/**.cpp" }
+   files { "Source/**.h", "Source/**.cpp",   }
 
    includedirs
    {
       "Source",
+	  "../Core/Source",
 
-	  -- Include Core
-	  "../Core/Source"
-   }
+      "../vendor/imgui",
+      "../vendor/stb",
+      "../vendor/glm",
+      
+      "%{IncludeDir.VulkanSDK}",
+   }  
 
    links
    {
-      "Core"
+        "ImGui",
+        "%{Library.Vulkan}",
+        "Core"
    }
 
-   targetdir ("../Binaries/" .. OutputDir .. "/%{prj.name}")
-   objdir ("../Binaries/Intermediates/" .. OutputDir .. "/%{prj.name}")
+   targetdir ("../Build/" .. OutputDir .. "/%{prj.name}")
+   objdir ("../Build/Intermediates/" .. OutputDir .. "/%{prj.name}")
 
    filter "system:windows"
        systemversion "latest"

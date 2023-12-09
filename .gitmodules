@@ -7,3 +7,6 @@
 [submodule "Vendor/stb"]
 	path = Vendor/stb
 	url = https://github.com/AustinLynes/stb
+[submodule "Vendor/glm"]
+	path = Vendor/glm
+	url = https://github.com/AustinLynes/glm
