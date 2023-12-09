@@ -1,11 +1,18 @@
 #include "Application.h"
 #include "Application.impl.h"
 
-#include "Layer.h"
+#include "../Layers/Layer.h"
+#include "../Layers/ConsoleLayer.h"
+#include "../Debug/Debug.h"
 
 extern bool g_ApplicationIsRunning;
 
 namespace Core {
+
+
+	void Application::WindowClosedCallback(GLFWwindow* win) {
+		
+	}
 
 	void Application::Close() {
 		shouldRun = false;
@@ -14,13 +21,20 @@ namespace Core {
 	void Application::Startup() {
 		glfwSetErrorCallback(glfw_error_callback);
 
+
 		if (!glfwInit()) {
 			std::cerr << "Could Not Initilize GLFW!\n";
 			return;
 		}
-
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		window = glfwCreateWindow(specification.Dimensions.width, specification.Dimensions.height, specification.Title.c_str(), NULL, NULL);
+		
+		GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+		const GLFWvidmode* vmode = glfwGetVideoMode(monitor);
+
+		window = glfwCreateWindow(16, 9, specification.Title.c_str(), nullptr, NULL);
+		glfwSetWindowSize(window, specification.Dimensions.width, specification.Dimensions.height);
+		glfwSetWindowPos(window, floor(vmode->width / 2) - (specification.Dimensions.width / 2), floor(vmode->height / 2) - (specification.Dimensions.height / 2));
+		glfwSetWindowCloseCallback(window, WindowClosedCallback);
 
 		if (!glfwVulkanSupported())
 		{
@@ -40,7 +54,7 @@ namespace Core {
 		// Create Window Surface
 		VkSurfaceKHR surface;
 		VkResult error = glfwCreateWindowSurface(g_instance, window, g_Allacator, &surface);
-		checK_vk_result(error);
+		check_vk_result(error);
 
 		// create framebuffers
 		int w, h;
@@ -75,22 +89,65 @@ namespace Core {
 		initInfo.ImageCount = wd->ImageCount;
 		initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 		initInfo.Allocator = g_Allacator;
-		initInfo.CheckVkResultFn = checK_vk_result;
+		initInfo.CheckVkResultFn = check_vk_result;
 
 		ImGui_ImplVulkan_Init(&initInfo, wd->RenderPass);
 
+		for (size_t i = 0; i < specification.requiredLayersCount; i++)
+		{
+			auto layerName = specification.pRequiredLayerNames[i];
+			if (strcmp(layerName, EDITOR_LAYER_CONSOLE) == 0) {
+				PushLayer<Layers::Console>();
+			}
+		}
+
+		Debug::Log("Hello World!");
 
 	}
 
-	void Application::Run() {
+	static int s_buttonEvent = -1;
+	static int dragStart_X;
+	static int dragStart_Y;
+	static int dragDelta_X;
+	static int dragDelta_Y;
 
+	void Application::CursorPositionCallback(GLFWwindow* window, double x, double y) 
+	{
+		if (s_buttonEvent == 1 ) {
+			dragDelta_X = x - dragStart_X;
+			dragDelta_Y = y - dragStart_Y;
+		}
+	}
+	void Application::MouseButtonCallback(GLFWwindow* window, int button, int action, int mods) 
+	{
+		if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS ) {
+			s_buttonEvent = 1;
+			double x, y;
+			glfwGetCursorPos(window, &x, &y);
+			dragStart_X = floor(x);
+			dragStart_Y = floor(y);
+		}
+		if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+			s_buttonEvent = 0;
+			dragStart_X = 0;
+			dragStart_Y = 0;
+		}
+	}
+
+
+
+	void Application::Run() {
+		
 		shouldRun = true;
 		 
 		ImGui_ImplVulkanH_Window* wd = &g_mainWindowData;
 		ImVec4 clearColor = ImVec4(0.16f, 0.16f, 0.16f, 1.0f);
 		ImGuiIO& io = ImGui::GetIO();
 
+		int wPos_X, wPos_Y;
+
 		while (!glfwWindowShouldClose(window) && shouldRun) {
+
 			glfwPollEvents();
 
 			// implement layerstack.
@@ -126,6 +183,10 @@ namespace Core {
 				static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
 
 				ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDocking;
+				
+				if (menubarCallback)
+					window_flags |= ImGuiWindowFlags_MenuBar;
+
 				if (opt_fullscreen)
 				{
 					ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -156,6 +217,12 @@ namespace Core {
 					ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
 				}
 
+				if (menubarCallback) {
+					if (ImGui::BeginMenuBar()) {
+						menubarCallback();
+						ImGui::EndMenuBar();
+					}
+				}
 				ImGui::End();
 
 				// render all layers in layer stack
@@ -190,6 +257,7 @@ namespace Core {
 			timeStep = glm::min<float>(frameTime, 1/90.0f);
 			lastFrameTime = time;
 		}
+
 	}
 
 	float Application::GetTime() {
@@ -206,7 +274,7 @@ namespace Core {
 		}
 
 		VkResult error = vkDeviceWaitIdle(g_device);
-		checK_vk_result(error);
+		check_vk_result(error);
 
 		for (auto& q : s_resourceFreeQueue) 
 			for (auto& fn : q)
@@ -239,7 +307,11 @@ namespace Core {
 		instance = nullptr;
 
 	}
-	
+
+	void Application::SetMenuBarCallback(const std::function<void()>& cb) {
+		menubarCallback = cb;
+	}
+
 
 	Application& Application::Get()
 	{

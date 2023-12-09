@@ -16,11 +16,11 @@
 
 extern Core::Application* Core::CreateApplication(int, char**);
 
-bool g_appRunning = true;
+bool g_ApplicationIsRunning = true;
 
 namespace Runtime {
 	int Main(int argc, char** argv) {
-		while (g_appRunning) {
+		while (g_ApplicationIsRunning) {
 			auto app = Core::CreateApplication(argc, argv);
 			app->Run();
 			delete app;
@@ -30,7 +30,7 @@ namespace Runtime {
 	}
 }
 
-#if BUILD_DIST
+#ifdef BUILD_DIST
 #include "Windows.h"
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR cmdline, int cmdshow) {
 	return Runtime::Main(__argc, __argv);

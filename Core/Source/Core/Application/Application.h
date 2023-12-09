@@ -19,15 +19,18 @@ namespace Core {
 			uint32_t height=900;
 		} Dimensions;
 		std::string Title = "Test";
+		const char** pRequiredLayerNames = nullptr;
+		uint32_t requiredLayersCount = 0;
 	};
-	
+
 	class Application {
+		friend class Console;
 	public:
 		Application(const ApplicationSpecification& spec=ApplicationSpecification());
 		~Application();
 
 		void Run();
-
+		void SetMenuBarCallback(const std::function<void()>& cb);
 		void Close();
 
 	public:
@@ -41,7 +44,11 @@ namespace Core {
 
 	public: //* STATIC *//
 		static Application& Get();
+		static GLFWwindow* GetWindow();
 
+		static void CursorPositionCallback(GLFWwindow* window, double x, double y);
+		static void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+		static void WindowClosedCallback(GLFWwindow* win);
 
 		static VkInstance GetInstance();
 		static VkPhysicalDevice GetPhysicalDevice();
@@ -70,6 +77,7 @@ namespace Core {
 		float lastFrameTime;
 
 		std::vector<std::shared_ptr<class Layer>> layerStack;
+		std::function<void()> menubarCallback;
 
 
 	};

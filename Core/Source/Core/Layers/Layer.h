@@ -13,3 +13,5 @@ namespace Core {
 
 	};
 }
+
+#include "layerDefs.h"

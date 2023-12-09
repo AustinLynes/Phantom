@@ -43,7 +43,7 @@ namespace Core {
 	static uint32_t s_currentFrameIndex = 0;
 	Application* instance = nullptr;
 
-	void checK_vk_result(VkResult error) {
+	void check_vk_result(VkResult error) {
 		if (error == VK_SUCCESS)
 			return;
 
@@ -97,7 +97,7 @@ namespace Core {
 
 			// create instance 
 			error = vkCreateInstance(&info, g_Allacator, &g_instance);
-			checK_vk_result(error);
+			check_vk_result(error);
 			free(extensions_ext);
 
 			// Find function pointer required and load it.
@@ -111,7 +111,7 @@ namespace Core {
 			debugInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
 
 			error = vkCreateDebugReportCallbackEXT(g_instance, &debugInfo, g_Allacator, &g_debugReport);
-			checK_vk_result(error);
+			check_vk_result(error);
 #else
 
 			error = vkCreateInstance(&info, g_Allacator, &g_instance);
@@ -125,7 +125,7 @@ namespace Core {
 		{
 			uint32_t gpuCount;
 			error = vkEnumeratePhysicalDevices(g_instance, &gpuCount, nullptr);
-			checK_vk_result(error);
+			check_vk_result(error);
 			IM_ASSERT(gpuCount > 0);
 
 
@@ -133,7 +133,7 @@ namespace Core {
 
 				VkPhysicalDevice* gpus = (VkPhysicalDevice*)malloc(sizeof(VkPhysicalDevice) * gpuCount);
 				error = vkEnumeratePhysicalDevices(g_instance, &gpuCount, gpus);
-				checK_vk_result(error);
+				check_vk_result(error);
 
 				if (gpus != nullptr) {
 
@@ -207,7 +207,7 @@ namespace Core {
 			createInfo.ppEnabledExtensionNames = deviceExtensions;
 
 			error = vkCreateDevice(g_physicalDevice, &createInfo, g_Allacator, &g_device);
-			checK_vk_result(error);
+			check_vk_result(error);
 			vkGetDeviceQueue(g_device, g_queueFamily, 0, &g_queue);
 
 		}
@@ -234,7 +234,7 @@ namespace Core {
 			pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
 			pool_info.pPoolSizes = pool_sizes;
 			error = vkCreateDescriptorPool(g_device, &pool_info, g_Allacator, &g_descriptorPool);
-			checK_vk_result(error);
+			check_vk_result(error);
 		}
 
 
@@ -293,17 +293,17 @@ namespace Core {
 			g_swapchainRebuild = true;
 			return;
 		}
-		checK_vk_result(error);
+		check_vk_result(error);
 
 		s_currentFrameIndex = (s_currentFrameIndex + 1) % g_mainWindowData.ImageCount;
 
 		ImGui_ImplVulkanH_Frame* fd = &wd->Frames[wd->FrameIndex];
 		{
 			error = vkWaitForFences(g_device, 1, &fd->Fence, VK_TRUE, UINT64_MAX);
-			checK_vk_result(error);
+			check_vk_result(error);
 
 			error = vkResetFences(g_device, 1, &fd->Fence);
-			checK_vk_result(error);
+			check_vk_result(error);
 		}
 		// free resources in queue
 		{
@@ -321,13 +321,13 @@ namespace Core {
 			}
 
 			error = vkResetCommandPool(g_device, fd->CommandPool, 0);
-			checK_vk_result(error);
+			check_vk_result(error);
 
 			VkCommandBufferBeginInfo info{};
 			info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 			info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 			error = vkBeginCommandBuffer(fd->CommandBuffer, &info);
-			checK_vk_result(error);
+			check_vk_result(error);
 
 		}
 
@@ -362,10 +362,10 @@ namespace Core {
 			info.pSignalSemaphores = &renderCompleteSemaphore;
 
 			error = vkEndCommandBuffer(fd->CommandBuffer);
-			checK_vk_result(error);
+			check_vk_result(error);
 
 			error = vkQueueSubmit(g_queue, 1, &info, fd->Fence);
-			checK_vk_result(error);
+			check_vk_result(error);
 
 		}
 
@@ -389,7 +389,7 @@ namespace Core {
 			return;
 		}
 
-		checK_vk_result(error);
+		check_vk_result(error);
 		wd->SemaphoreIndex = (wd->SemaphoreIndex + 1) % wd->ImageCount;
 	}
 
@@ -418,13 +418,13 @@ namespace Core {
 
 		VkCommandBuffer& buffer = s_allocatedCommandBuffers[wd->FrameIndex].emplace_back();
 		auto error = vkAllocateCommandBuffers(g_device, &allocInfo, &buffer);
-		checK_vk_result(error);
+		check_vk_result(error);
 
 		VkCommandBufferBeginInfo info{};
 		info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 		error = vkBeginCommandBuffer(buffer, &info);
-		checK_vk_result(error);
+		check_vk_result(error);
 
 		return buffer;
 	}
@@ -444,11 +444,11 @@ namespace Core {
 
 		VkFence fence;
 		error = vkCreateFence(g_device, &fenceCreateInfo, g_Allacator, &fence);
-		checK_vk_result(error);
+		check_vk_result(error);
 		error = vkQueueSubmit(g_queue, 1, &endinfo, fence);
-		checK_vk_result(error);
+		check_vk_result(error);
 		error = vkWaitForFences(g_device, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT);
-		checK_vk_result(error);
+		check_vk_result(error);
 
 		vkDestroyFence(g_device, fence, g_Allacator);
 	}
@@ -458,6 +458,9 @@ namespace Core {
 	}
 
 
+	GLFWwindow* Application::GetWindow() {
+		return instance->window;
+	}
 
 
 	// Layers
