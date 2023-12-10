@@ -20,6 +20,7 @@ public:
 	}
 	virtual void OnUpdate(float ts) override {
 		framebuffer->Render();
+		framebuffer->Present();
 	}
 	
 	virtual void OnUIRender() override
@@ -27,7 +28,7 @@ public:
 		if (ImGui::Begin("Scene")) {
 			
 			
-			ImGui::Image(ImTextureID(framebuffer->GetColorBuffer()->GetDescriptorSet()), {(float)framebuffer->width, (float)framebuffer->height});
+			//ImGui::Image(ImTextureID(framebuffer->GetColorBuffer()->GetDescriptorSet()), {(float)framebuffer->width, (float)framebuffer->height});
 			
 			
 			ImGui::End();

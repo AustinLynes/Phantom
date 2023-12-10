@@ -235,7 +235,7 @@ namespace Core {
 
 		// Copy to Image
 		{
-			VkCommandBuffer command_buffer = Application::GetCommandBuffer(true);
+			VkCommandBuffer command_buffer = Application::GetCommandBuffer();
 
 			VkImageMemoryBarrier copy_barrier = {};
 			copy_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;

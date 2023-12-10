@@ -33,6 +33,9 @@ namespace Core {
 		VkImage GetImage() { return m_Image; }
 		VkImageView GetView() { return m_ImageView; }
 
+		ImageFormat GetFormat() { return m_Format; }
+		VkFormat GetFormatConverted() { return ConvertFormat(m_Format); }
+
 	public:/* STATIC */
 		static uint32_t GetVulkanMemoryType(VkMemoryPropertyFlags properties, uint32_t type_bits);
 		static uint32_t BytesPerPixel(ImageFormat format);

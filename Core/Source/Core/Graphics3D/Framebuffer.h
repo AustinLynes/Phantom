@@ -2,10 +2,20 @@
 
 #include <string>
 #include "vulkan/vulkan.h"
-#include "../Utils/image.h"
 
 namespace Core {
 	namespace Graphics {
+
+
+
+		struct Frame {
+			VkCommandPool commandPool;
+			VkCommandBuffer commandBuffer;
+			VkFence fence;
+			VkImage buffer;
+			VkImageView bufferView;
+			VkFramebuffer framebuffer;
+		};
 
 		class Framebuffer
 		{
@@ -14,25 +24,23 @@ namespace Core {
 			~Framebuffer();
 
 			void Render();
+			void Present();
+
+			
 			uint32_t width;
 			uint32_t height;
 
-			Image* GetColorBuffer(){ return _color; }
-			Image* GetDepthBuffer(){ return _depth; }
-
 		private:
 
-			Image* _color;
-			Image* _depth;
+			//Image* _depth;
+			const int frameCount = 3;
+			Frame* frames;
 
-			/*VkImage _color;
-			VkImageView _colorImageView;
+			int currentFrameIndex = 0;
+
+			VkSwapchainKHR swapchain;
 			
-			VkImage _depth;
-			VkImageView _depthImageView;
-			
-			VkDescriptorSet _colorBuffer;
-			VkDescriptorSet _depthBuffer;*/
+
 
 		};
 

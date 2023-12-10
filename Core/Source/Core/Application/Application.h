@@ -54,8 +54,9 @@ namespace Core {
 		static VkPhysicalDevice GetPhysicalDevice();
 		static VkDevice GetDevice();
 
+		static VkAllocationCallbacks* GetAllacator();
 
-		static VkCommandBuffer GetCommandBuffer(bool begin);
+		static VkCommandBuffer GetCommandBuffer();
 		static void FlushCommandBuffer(VkCommandBuffer buffer);
 		static void SubmitResourceFree(std::function<void()>&& func);
 

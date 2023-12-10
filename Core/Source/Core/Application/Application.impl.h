@@ -405,7 +405,11 @@ namespace Core {
 		return g_device;
 	}
 
-	VkCommandBuffer Application::GetCommandBuffer(bool begin) {
+	VkAllocationCallbacks* Application::GetAllacator() {
+		return g_Allacator;
+	}
+
+	VkCommandBuffer Application::GetCommandBuffer() {
 		ImGui_ImplVulkanH_Window* wd = &g_mainWindowData;
 
 		VkCommandPool pool = wd->Frames[wd->FrameIndex].CommandPool;
