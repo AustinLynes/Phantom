@@ -10,6 +10,3 @@
 [submodule "Vendor/glm"]
 	path = Vendor/glm
 	url = https://github.com/AustinLynes/glm
-[submodule "Vendor/glslang"]
-	path = Vendor/glslang
-	url = https://github.com/AustinLynes/glslang
