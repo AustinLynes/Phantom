@@ -9,12 +9,27 @@ namespace Core {
 
 
 		struct Frame {
-			VkCommandPool commandPool;
-			VkCommandBuffer commandBuffer;
-			VkFence fence;
-			VkImage buffer;
-			VkImageView bufferView;
-			VkFramebuffer framebuffer;
+			struct ImageResource {
+				VkImage image;
+				VkImageView view;
+				VkDeviceMemory memory;
+				VkDescriptorSet descriptor;
+			};
+			VkCommandPool CommandPool;
+			VkCommandBuffer CommandBuffer;
+			VkFence Fence;
+			ImageResource ColorBuffer;
+			ImageResource DepthBuffer;
+			VkRenderPass RenderPass;
+
+			VkFramebuffer Framebuffer;
+
+		};
+
+		enum class ShaderType {
+			Vertex,
+			Fragment,
+			Geometry
 		};
 
 		class Framebuffer
@@ -26,20 +41,28 @@ namespace Core {
 			void Render();
 			void Present();
 
-			
+			VkDescriptorSet GetColorBuffer();
+
 			uint32_t width;
 			uint32_t height;
 
 		private:
 
 			//Image* _depth;
-			const int frameCount = 3;
 			Frame* frames;
-
 			int currentFrameIndex = 0;
+			const int frameCount = 3;
+
+			VkPipeline graphicsPipeline_STANDARD;
+			VkBuffer StagingBuffer = nullptr;
+			VkDeviceMemory StagingBufferMemory = nullptr;
+			size_t AlignedSize = 0;
 
 			VkSwapchainKHR swapchain;
-			
+
+			// differnent types of samplers
+			VkSampler Sampler;
+
 
 
 		};

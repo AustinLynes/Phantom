@@ -1,14 +1,14 @@
-#include "backends/imgui_impl_glfw.h"
-#include "backends/imgui_impl_vulkan.h"
+#include "imgui/backends/imgui_impl_glfw.h"
+#include "imgui/backends/imgui_impl_vulkan.h"
 
 #define GLFW_INCLUDE_NONE
 #define GLFW_INCLUDE_VULKAN
-#include "GLFW/glfw3.h"
+#include "glfw/glfw3.h"
 #include "vulkan/vulkan.h"
 
-#include "glm/glm.hpp"
+#include "glm/glm/glm.hpp"
 
-#include "stb_image.h"
+#include "stb/stb_image.h"
 #include <vector>
 #include <functional>
 #include <memory>

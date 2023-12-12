@@ -12,22 +12,23 @@ project "App"
       "Source",
 	  "../Core/Source",
 
-      "../vendor/imgui",
-      "../vendor/stb",
-      "../vendor/glm",
-      
+      "../vendor/",
+
       "%{IncludeDir.VulkanSDK}",
    }  
+
+   targetdir ("../Build/" .. OutputDir .. "/%{prj.name}")
+   objdir ("../Build/" .. OutputDir .. "/%{prj.name}")
 
    links
    {
         "ImGui",
+        
         "%{Library.Vulkan}",
         "Core"
    }
 
-   targetdir ("../Build/" .. OutputDir .. "/%{prj.name}")
-   objdir ("../Build/Intermediates/" .. OutputDir .. "/%{prj.name}")
+ 
 
    filter "system:windows"
        systemversion "latest"

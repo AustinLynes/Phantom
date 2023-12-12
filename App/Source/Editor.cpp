@@ -28,12 +28,16 @@ public:
 		if (ImGui::Begin("Scene")) {
 			
 			
-			//ImGui::Image(ImTextureID(framebuffer->GetColorBuffer()->GetDescriptorSet()), {(float)framebuffer->width, (float)framebuffer->height});
+			ImGui::Image(ImTextureID(framebuffer->GetColorBuffer()), {(float)framebuffer->width, (float)framebuffer->height});
 			
 			
 			ImGui::End();
 		}
 	} 
+
+	virtual void OnDetach() override {
+		delete framebuffer;
+	}
 
 	uint32_t width = 1024;
 	uint32_t height = 1024;

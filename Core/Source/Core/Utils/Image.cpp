@@ -1,13 +1,12 @@
 #include "Image.h"
 
-#include "imgui.h"
-#include "backends/imgui_impl_vulkan.h"
+#include "imgui/imgui.h"
+#include "imgui/backends/imgui_impl_vulkan.h"
 
 #include "../Application/Application.h"
 
-
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include "stb/stb_image.h"
 
 namespace Core {
 		void check_vk_result(VkResult error);

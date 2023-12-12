@@ -11,23 +11,22 @@ project "Core"
    {
       "Source",
 
-      "../vendor/imgui/",
-      "../vendor/glfw/include",
-      "../vendor/stb",
-      "../vendor/glm",
+      "../vendor/",
+      "../vendor/glfw/include/",
 
       "%{IncludeDir.VulkanSDK}",
    }
-
+ 
     links
     {
+        
         "GLFW",
         "ImGui",
 
         "%{Library.Vulkan}",
     }
    targetdir ("../Build/" .. OutputDir .. "/%{prj.name}")
-   objdir ("../Build/Intermediates/" .. OutputDir .. "/%{prj.name}")
+   objdir ("../Build/" .. OutputDir .. "/%{prj.name}")
 
    filter "system:windows"
        systemversion "latest"
