@@ -28,7 +28,7 @@ public:
 		if (ImGui::Begin("Scene")) {
 			
 			
-			ImGui::Image(ImTextureID(framebuffer->GetColorBuffer()), {(float)framebuffer->width, (float)framebuffer->height});
+			//ImGui::Image(ImTextureID(framebuffer->GetColorBuffer()), {(float)framebuffer->width, (float)framebuffer->height});
 			
 			
 			ImGui::End();

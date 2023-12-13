@@ -10,8 +10,8 @@
 
 
 struct GLFWwindow;
-
 namespace Core {
+
 
 	struct ApplicationSpecification {
 		struct {

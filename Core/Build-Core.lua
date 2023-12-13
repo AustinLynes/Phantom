@@ -13,6 +13,8 @@ project "Core"
 
       "../vendor/",
       "../vendor/glfw/include/",
+      "../vendor/DirectXTK12/inc/",
+      "../vendor/DirectX-Headers/include/",
 
       "%{IncludeDir.VulkanSDK}",
    }
@@ -22,7 +24,8 @@ project "Core"
         
         "GLFW",
         "ImGui",
-
+        "../Build/" .. OutputDir .. "/DirectXTK12/DirectXTK12",
+        
         "%{Library.Vulkan}",
     }
    targetdir ("../Build/" .. OutputDir .. "/%{prj.name}")

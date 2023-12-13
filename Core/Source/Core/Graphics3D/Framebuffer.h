@@ -1,39 +1,42 @@
 #pragma once
 
 #include <string>
-#include "vulkan/vulkan.h"
+
+#pragma comment(lib, "d3d12.lib")
+#pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "d3dcompiler.lib")
+
+
+#include <wrl/client.h>
+
+#include <directx/d3d12.h>
+#include <directx/d3dx12.h>
+#include <directx/d3dx12_resource_helpers.h>
+#include <d3dcompiler.h>
+#include <dxgi1_6.h>
+#include <DirectXHelpers.h>
+#include <GraphicsMemory.h>
+
 
 namespace Core {
 	namespace Graphics {
+		
+		using namespace Microsoft::WRL;
 
-
-
-		struct Frame {
-			struct ImageResource {
-				VkImage image;
-				VkImageView view;
-				VkDeviceMemory memory;
-				VkDescriptorSet descriptor;
-			};
-			VkCommandPool CommandPool;
-			VkCommandBuffer CommandBuffer;
-			VkFence Fence;
-			ImageResource ColorBuffer;
-			ImageResource DepthBuffer;
-			VkRenderPass RenderPass;
-
-			VkFramebuffer Framebuffer;
-
-		};
-
-		enum class ShaderType {
-			Vertex,
-			Fragment,
-			Geometry
-		};
 
 		class Framebuffer
 		{
+			struct Frame {
+				HANDLE fenceEvent;
+				UINT64 frameFenceValue;
+				ComPtr<ID3D12Fence> fence;
+				ComPtr<ID3D12CommandAllocator> commandAllocator;
+				ComPtr<ID3D12GraphicsCommandList> commandList;
+				ComPtr<ID3D12Resource> RenderTexture;
+
+			
+			};
+
 		public:
 			Framebuffer(uint32_t width, uint32_t height);
 			~Framebuffer();
@@ -41,28 +44,26 @@ namespace Core {
 			void Render();
 			void Present();
 
-			VkDescriptorSet GetColorBuffer();
+
+
+			Frame* frames;
+		private:
+			void Init();
+
+		private:
+			ComPtr<ID3D12Device2> device;
+			ComPtr<IDXGIAdapter4> adapter;
+			ComPtr<ID3D12CommandQueue> cmdQueue_DIRECT;
+
+			ComPtr<ID3D12DescriptorHeap> rtvDescriptorHeap;
+			ComPtr<ID3D12PipelineState> pipelineState;
+			
 
 			uint32_t width;
 			uint32_t height;
-
-		private:
-
-			//Image* _depth;
-			Frame* frames;
-			int currentFrameIndex = 0;
-			const int frameCount = 3;
-
-			VkPipeline graphicsPipeline_STANDARD;
-			VkBuffer StagingBuffer = nullptr;
-			VkDeviceMemory StagingBufferMemory = nullptr;
-			size_t AlignedSize = 0;
-
-			VkSwapchainKHR swapchain;
-
-			// differnent types of samplers
-			VkSampler Sampler;
-
+			uint32_t frameCount;
+	
+			int currentFrame = 0;
 
 
 		};

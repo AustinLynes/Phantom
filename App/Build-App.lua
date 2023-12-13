@@ -12,9 +12,14 @@ project "App"
       "Source",
 	  "../Core/Source",
 
-      "../vendor/",
 
+      "../vendor/",
+      "../vendor/glfw/include/",
+      "../vendor/DirectXTK12/inc/",
+      "../vendor/DirectX-Headers/include/",
+      
       "%{IncludeDir.VulkanSDK}",
+
    }  
 
    targetdir ("../Build/" .. OutputDir .. "/%{prj.name}")
@@ -22,11 +27,12 @@ project "App"
 
    links
    {
+        "GLFW",
         "ImGui",
-        
+        "Core",
         "%{Library.Vulkan}",
-        "Core"
-   }
+
+    }
 
  
 

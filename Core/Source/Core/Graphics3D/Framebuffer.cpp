@@ -2,548 +2,299 @@
 #include "../Application/Application.h"
 #include <Core/Debug/Debug.h>
 #include <fstream>
-#include <imgui/backends/imgui_impl_vulkan.h>
 
 
 namespace Core {
 
-	void check_vk_result(VkResult error);
+
+	// D3D12 Resources
+
+
 
 	namespace Graphics {
 
-		uint32_t GetVulkanMemoryType(VkMemoryPropertyFlags properties, uint32_t type_bits)
-		{
-			VkPhysicalDeviceMemoryProperties prop;
-			vkGetPhysicalDeviceMemoryProperties(Application::GetPhysicalDevice(), &prop);
-			for (uint32_t i = 0; i < prop.memoryTypeCount; i++)
+
+		void ThrowIfFailed(HRESULT hres) {
+
+			if (!SUCCEEDED(hres)) {
+				auto err = GetLastError();
+
+				LPSTR message;
+
+				FormatMessageA(
+					FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+					nullptr,
+					err,
+					MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+					reinterpret_cast<LPSTR>(&message),
+					0,
+					nullptr
+				);
+
+				throw std::runtime_error(message);
+			}
+		}
+
+#define CHECK(hr) ThrowIfFailed(hr)
+
+#ifdef _DEBUG
+
+
+		void EnableD3D12DebugLayer() {
+
+			ComPtr<ID3D12Debug> dbgInterface;
+			CHECK(D3D12GetDebugInterface(IID_PPV_ARGS(&dbgInterface)));
+			dbgInterface->EnableDebugLayer();
+
+		}
+
+
+#endif
+
+		ComPtr<IDXGIAdapter4> SelectAdapter() {
+			ComPtr<IDXGIFactory4> factory;
+
+			UINT flags = 0;
+#ifdef _DEBUG
+			flags = DXGI_CREATE_FACTORY_DEBUG;
+#endif 
+			auto hres = CreateDXGIFactory2(flags, IID_PPV_ARGS(&factory));
+			CHECK(hres);
+
+			ComPtr<IDXGIAdapter1> temp;
+			ComPtr<IDXGIAdapter4> adapter;
+			int maxMemory = 0;
+
+			for (UINT i = 0; factory->EnumAdapters1(i, &temp) != DXGI_ERROR_NOT_FOUND; i++)
 			{
-				if ((prop.memoryTypes[i].propertyFlags & properties) == properties && type_bits & (1 << i))
-					return i;
+				DXGI_ADAPTER_DESC1 desc{};
+				temp->GetDesc1(&desc);
+				bool isDedicated = (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == 0;
+				if (isDedicated && desc.DedicatedVideoMemory > maxMemory) {
+					maxMemory = desc.DedicatedVideoMemory;
+					hres = temp.As(&adapter);
+					CHECK(hres);
+				}
+
 			}
 
-			return 0xffffffff;
+			return adapter;
 		}
 
-		//char* readFile(const char* filename, size_t* fileSize) {
-		//	FILE* file = fopen(filename, "rb");
-		//	if (!file) {
-		//		fprintf(stderr, "Failed to open file: %s\n", filename);
-		//		return NULL;
-		//	}
-		//	fseek(file, 0, SEEK_END);
-		//	*fileSize = ftell(file);
-		//	fseek(file, 0, SEEK_SET);
-		//	char* shaderCode = (char*)malloc(*fileSize + 1);
-		//	if (!shaderCode) {
-		//		fclose(file);
-		//		fprintf(stderr, "Failed to allocate memory for shader code.\n");
-		//		return NULL;
-		//	}
-		//	fread(shaderCode, *fileSize, 1, file);
-		//	shaderCode[*fileSize] = '\0';
-		//	fclose(file);
-		//	return shaderCode;
-		//}
+		ComPtr<ID3D12Device2> CreateDevice(IDXGIAdapter4* adapter) {
+			HRESULT hres = 0;
 
-		std::vector<uint32_t> readFile_SPIRV(const std::string& filename) {
-			// Open the SPIR-V file in binary mode
-			std::ifstream file(filename, std::ios::ate | std::ios::binary);
+			ComPtr<ID3D12Device2> device;
 
-			// Check if file opening was successful
-			if (!file.is_open()) {
-				std::cerr << "Failed to open file: " << filename << std::endl;
-				return {}; // Return an empty vector on failure
+			hres = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device));
+			CHECK(hres);
+
+#if _DEBUG
+			ComPtr<ID3D12InfoQueue> infoQueue;
+			if (SUCCEEDED(device.As(&infoQueue))) {
+				infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+				infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
+				infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
+
+				/*D3D12_MESSAGE_CATEGORY categories[]{
+
+				}*/
+
+				D3D12_MESSAGE_SEVERITY severities[]{
+					D3D12_MESSAGE_SEVERITY_INFO
+				};
+
+				D3D12_MESSAGE_ID denyList[]{
+					D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
+					D3D12_MESSAGE_ID_MAP_INVALID_NULLRANGE,
+					D3D12_MESSAGE_ID_UNMAP_INVALID_NULLRANGE
+				};
+
+
+				D3D12_INFO_QUEUE_FILTER filter{};
+				filter.DenyList.pIDList = denyList;
+				filter.DenyList.NumIDs = _countof(denyList);
+				filter.DenyList.pSeverityList = severities;
+				filter.DenyList.NumSeverities = _countof(severities);
+
+				hres = infoQueue->PushStorageFilter(&filter);
+
 			}
+#endif
 
-			// Get the file size
-			size_t fileSize = static_cast<size_t>(file.tellg());
-
-			// Seek back to the beginning of the file
-			file.seekg(0);
-
-			// Read the file content into a vector of chars
-			std::vector<char> buffer(fileSize);
-			file.read(buffer.data(), fileSize);
-
-			// Close the file
-			file.close();
-
-			// Interpret the char buffer as uint32_t
-			std::vector<uint32_t> spirvBytes(fileSize / sizeof(uint32_t));
-			std::memcpy(spirvBytes.data(), buffer.data(), fileSize);
-
-			return spirvBytes; // Return the vector containing SPIR-V bytecode as uint32_t
+			return device;
 		}
 
-		VkResult CompileToSPIRV(const std::string& glsl, ShaderType type) {
-			
-			std::string command = "%VULKAN_SDK%/bin/glslangValidator.exe -V " + glsl + " -o " + glsl + ".spv";
-			
-			std::cout << "compiling \n\t\'" + command + "\'";
-			
-			int error = std::system(command.c_str());
+		ComPtr<ID3D12CommandQueue> CreateCommandQueue(ID3D12Device2* pDevice, int priority = 0, D3D12_COMMAND_LIST_TYPE cmdListType = D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_FLAGS flags = D3D12_COMMAND_QUEUE_FLAG_NONE) {
+			ComPtr<ID3D12CommandQueue> cmdQueue;
 
+			D3D12_COMMAND_QUEUE_DESC desc{};
+			desc.Flags = flags;
+			desc.NodeMask = 0;
+			desc.Priority = priority;
+			desc.Type = cmdListType;
 
-			if (error != 0) {
-				Debug::Log("Could Not Compile: " + glsl);
-				return VK_ERROR_VALIDATION_FAILED_EXT;
-			}
-			else {
-				auto temp = (glsl + ".spv");
-				return VK_SUCCESS;
-			}
+			HRESULT err = pDevice->CreateCommandQueue(&desc, IID_PPV_ARGS(&cmdQueue));
+			CHECK(err);
+
+			return cmdQueue;
+
 		}
-		
-		VkShaderModule CreateShaderModuleExt(VkDevice device, const VkAllocationCallbacks* allocator, const std::string& glslFilepath, ShaderType shaderType) {
-			
-			VkShaderModule shader;
 
-			// compile GLSL to SPIR-V
-			VkResult error = CompileToSPIRV(glslFilepath, shaderType);
-			check_vk_result(error);
-			
-			// read SPIR-V file
-			std::vector<uint32_t> code = readFile_SPIRV(glslFilepath + ".spv");
+		void Framebuffer::Init() {
 
-			if (code.data() == nullptr) {
-				throw std::runtime_error("file read error, spir-v file was not read correctly...");
+#ifdef _DEBUG
+			EnableD3D12DebugLayer();
+#endif
+			
+			adapter = SelectAdapter();
+			device = CreateDevice(adapter.Get());
+
+			cmdQueue_DIRECT = CreateCommandQueue(device.Get(), 0, D3D12_COMMAND_LIST_TYPE_DIRECT);
+
+			frames = new Frame[frameCount];
+			
+			// create the RTVs descriptor heap
+			D3D12_DESCRIPTOR_HEAP_DESC rtvHeap{};
+			rtvHeap.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+			rtvHeap.NodeMask = 0;
+			rtvHeap.NumDescriptors = frameCount;
+			rtvHeap.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+
+			HRESULT hres = device->CreateDescriptorHeap(&rtvHeap, IID_PPV_ARGS(&rtvDescriptorHeap));
+
+			// aquire handle to the newly created descriptor heap
+			D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+
+
+			// create the pipeline state object
+			D3D12_INPUT_ELEMENT_DESC elements[]{
+				{"POSITION", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+				{"COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+			};
+
+			
+			D3D12_INPUT_LAYOUT_DESC inputLayout{ 0 };
+			inputLayout.NumElements = _countof(elements);
+			inputLayout.pInputElementDescs = elements;
+
+			D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeDesc{};
+			pipeDesc.NodeMask = 0;
+			pipeDesc.InputLayout = inputLayout;
+			
+
+
+			device->CreateGraphicsPipelineState(&pipeDesc, IID_PPV_ARGS(&pipelineState));
+
+			// each frame needs to be created from scratch to render-to-texture.
+			for (int i = 0; i < frameCount; i++)
+			{
+				Frame frame{0};
+
+				D3D12_RESOURCE_DESC desc{};
+				desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+				desc.Alignment = 0;
+				desc.Width = width;
+				desc.Height = height;
+				desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+				desc.SampleDesc.Count = 1;
+				desc.SampleDesc.Quality = 0;
+				desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+				desc.MipLevels = 1;
+				desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+				desc.DepthOrArraySize = 1;
+				// create the render textures
+				auto rtvHeapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+				hres = device->CreateCommittedResource(&rtvHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_RENDER_TARGET, nullptr, IID_PPV_ARGS(&frame.RenderTexture));
+				CHECK(hres);
+
+				D3D12_RENDER_TARGET_VIEW_DESC rtv{};
+				rtv.Format = desc.Format;
+				rtv.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+				rtv.Texture2D.MipSlice = 0;
+
+				device->CreateRenderTargetView(frame.RenderTexture.Get(), &rtv, rtvHandle);
+
+				const UINT descriptrSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+				rtvHandle.ptr += descriptrSize;
+
+
+				// create the command list
+
+				hres = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frame.commandAllocator));
+				CHECK(hres);
+
+				hres = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, frame.commandAllocator.Get(), pipelineState.Get(), IID_PPV_ARGS(&frame.commandList));
+				CHECK(hres);
+				hres = frame.commandList->Close();
+				CHECK(hres);
+
+				hres = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&frame.fence));
+				CHECK(hres);
+				frame.frameFenceValue = 0;
+
+				frame.fenceEvent = CreateEventEx(NULL, L"FenceEvent", NULL, NULL);
+
+				frames[i] = frame;
 			}
 
-			
-			VkShaderModuleCreateInfo info{};
-			info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-			info.flags = 0;
-			info.pNext = nullptr;
-			
-			info.codeSize = 4* code.size();
-			info.pCode = code.data();
-
-			error = vkCreateShaderModule(device, &info, allocator, &shader);
-			check_vk_result(error);
-
-			return shader;
 		}
+
 
 
 		Framebuffer::Framebuffer(uint32_t width, uint32_t height)
-			: width{ width }, height{ height }
+			: width{ width }, height{ height }, frameCount{ 3 }, frames{ nullptr }
 		{
-
-			Core::Debug::Log("Framebuffer Size: " + std::to_string(width) + ", " + std::to_string(height));
-
-			auto device = Application::GetDevice();
-			auto allocator = Application::GetAllacator();
-			auto physicalDevice = Application::GetPhysicalDevice();
-
-			VkResult error;
-
-			frames = new Frame[frameCount]{};
-
-			for (int i = 0; i < frameCount; i++)
-			{
-				Frame frame{};
-
-				// Create Color Image Attachment
-				{
-					// Create Image
-					VkImageCreateInfo info{};
-					info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-					info.pNext = nullptr;
-					info.flags = 0;
-					info.imageType = VK_IMAGE_TYPE_2D;
-					info.format = VK_FORMAT_R32G32B32A32_SFLOAT; // 8bit uint ( 0 -> 255 )
-					info.extent.width = width;
-					info.extent.height = height;
-					info.extent.depth = 1.0f;
-					info.mipLevels = 1;
-					info.arrayLayers = 1;
-					info.samples = VK_SAMPLE_COUNT_1_BIT;
-					info.tiling = VK_IMAGE_TILING_OPTIMAL;
-					info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-					info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-					info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-					error = vkCreateImage(device, &info, allocator, &frame.ColorBuffer.image);
-					check_vk_result(error);
-
-					// Allocate Memory
-					// determine what kind of memory is required.
-					VkMemoryRequirements req;
-					vkGetImageMemoryRequirements(device, frame.ColorBuffer.image, &req);
-
-					VkMemoryAllocateInfo alloc_info = {};
-					alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-					alloc_info.allocationSize = req.size;
-					alloc_info.memoryTypeIndex = GetVulkanMemoryType(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, req.memoryTypeBits);
-					error = vkAllocateMemory(device, &alloc_info, nullptr, &frame.ColorBuffer.memory);
-					check_vk_result(error);
-					// Bind Image and Memory
-					error = vkBindImageMemory(device, frame.ColorBuffer.image, frame.ColorBuffer.memory, 0);
-					check_vk_result(error);
-
-					// Create Image View
-					VkImageViewCreateInfo viewInfo{};
-					viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-					viewInfo.flags = 0;
-					viewInfo.image = frame.ColorBuffer.image;
-					viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-					viewInfo.format = info.format;
-					viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-					viewInfo.subresourceRange.levelCount = 1;
-					viewInfo.subresourceRange.layerCount = 1;
-
-					error = vkCreateImageView(device, &viewInfo, allocator, &frame.ColorBuffer.view);
-					check_vk_result(error);
-					// create per-frame sampler
-					{
-						VkSamplerCreateInfo createInfo{};
-						createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-						createInfo.pNext = nullptr;
-						createInfo.flags = 0;
-						createInfo.magFilter = VK_FILTER_NEAREST;
-						createInfo.minFilter = VK_FILTER_NEAREST;
-						createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-						createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-						createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-						createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-						createInfo.mipLodBias = 0.0;
-						createInfo.anisotropyEnable = VK_FALSE;
-						createInfo.maxAnisotropy = 1.0;
-						createInfo.compareEnable = VK_TRUE;
-						createInfo.compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-						createInfo.minLod = 0.0f;
-						createInfo.maxLod = FLT_MAX;
-						createInfo.unnormalizedCoordinates = VK_FALSE;
-						
-						error = vkCreateSampler(device, &createInfo, allocator, &Sampler);
-						check_vk_result(error);
-					}
-
-					frame.ColorBuffer.descriptor = (VkDescriptorSet)ImGui_ImplVulkan_AddTexture(Sampler, frame.ColorBuffer.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-				}
-
-				// Create Depth Image Attachment
-				{
-					// Create Image
-					VkImageCreateInfo info{};
-					info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-					info.pNext = nullptr;
-					info.flags = 0;
-					info.imageType = VK_IMAGE_TYPE_2D;
-					info.format = VK_FORMAT_D24_UNORM_S8_UINT; // depth - 24bit | unsigned normalized 
-					info.extent.width = width;
-					info.extent.height = height;
-					info.extent.depth = 1.0f;
-					info.mipLevels = 1;
-					info.arrayLayers = 1;
-					info.samples = VK_SAMPLE_COUNT_1_BIT;
-					info.tiling = VK_IMAGE_TILING_OPTIMAL;
-					info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-					info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-					info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-					error = vkCreateImage(device, &info, allocator, &frame.DepthBuffer.image);
-					check_vk_result(error);
-
-					// Allocate Memory
-					// determine what kind of memory is required.
-					VkMemoryRequirements req;
-					vkGetImageMemoryRequirements(device, frame.DepthBuffer.image, &req);
-
-					VkMemoryAllocateInfo alloc_info = {};
-					alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-					alloc_info.allocationSize = req.size;
-					alloc_info.memoryTypeIndex = GetVulkanMemoryType(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, req.memoryTypeBits);
-					error = vkAllocateMemory(device, &alloc_info, nullptr, &frame.DepthBuffer.memory);
-					check_vk_result(error);
-					// Bind Image and Memory
-					error = vkBindImageMemory(device, frame.DepthBuffer.image, frame.DepthBuffer.memory, 0);
-					check_vk_result(error);
-
-					// Create Image View
-					VkImageViewCreateInfo viewInfo{};
-					viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-					viewInfo.flags = 0;
-					viewInfo.image = frame.DepthBuffer.image;
-					viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-					viewInfo.format = info.format;
-					viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-					viewInfo.subresourceRange.levelCount = 1;
-					viewInfo.subresourceRange.layerCount = 1;
-
-					error = vkCreateImageView(device, &viewInfo, allocator, &frame.DepthBuffer.view);
-					check_vk_result(error);
-				}
-
-
-
-
-				// Create Renderpass and describe Graphics Pipeline settings
-				{
-					VkAttachmentDescription attachmentDescs[]{
-						/*COLOR ATTACHMENT DESC*/
-						{
-							0,
-							VK_FORMAT_R32G32B32A32_SFLOAT,
-							VK_SAMPLE_COUNT_1_BIT,
-							VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-							VK_ATTACHMENT_STORE_OP_DONT_CARE,
-							VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-							VK_ATTACHMENT_STORE_OP_DONT_CARE,
-							VK_IMAGE_LAYOUT_UNDEFINED,
-							VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-						},
-						/*DEPTH ATTACHMENT DESC*/
-						//{
-						//	0,
-						//	VK_FORMAT_D24_UNORM_S8_UINT,
-						//	VK_SAMPLE_COUNT_1_BIT,
-						//	VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-						//	VK_ATTACHMENT_STORE_OP_DONT_CARE,
-						//	VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-						//	VK_ATTACHMENT_STORE_OP_DONT_CARE,
-						//	VK_IMAGE_LAYOUT_UNDEFINED,
-						//	VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL
-						//}
-					};
-
-					VkAttachmentReference attachRefs[]{
-						/*COLOR*/
-						//{0, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL },
-						{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL },
-						/*DEPTH*/
-					};
-
-					VkSubpassDescription subpasses[]{
-						// Draw Normal
-						{
-							0,								//    flags;
-							VK_PIPELINE_BIND_POINT_GRAPHICS,//    pipelineBindPoint;
-							0,								//    inputAttachmentCount;
-							nullptr,						//const VkAttachmentReference pInputAttachments;
-							1,								//    colorAttachmentCount;
-							&attachRefs[0],					//const VkAttachmentReference pColorAttachments;
-							nullptr,						//const VkAttachmentReference pResolveAttachments;
-							/*&attachRefs[0]*/nullptr,					//const VkAttachmentReference pDepthStencilAttachment;
-							0,								//    preserveAttachmentCount;
-							nullptr							//const uint32_t pPreserveAttachments;
-						}
-					};
-
-					VkRenderPassCreateInfo info{};
-					info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-					info.pNext = nullptr;
-					info.flags = 0;
-					info.attachmentCount = 1;
-					info.pAttachments = attachmentDescs;
-					info.subpassCount = _countof(subpasses);
-					info.pSubpasses = subpasses;					
-
-					error = vkCreateRenderPass(device, &info, allocator, &frame.RenderPass);
-					check_vk_result(error);
-
-					// Describe Vertex Layout
-
-					const int POSITION = 0;
-
-					VkVertexInputBindingDescription binds[]{ 
-						{POSITION, sizeof(float) * 4, VK_VERTEX_INPUT_RATE_VERTEX }
-					};
-					
-					VkVertexInputAttributeDescription attrs[]{ 
-						{ POSITION, 0, VK_FORMAT_R8G8B8A8_UNORM, 0} 
-					};
-
-					
-					// Describe Shader Stages
-					// Vertex Input
-					VkPipelineVertexInputStateCreateInfo vi{};
-					vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-					vi.pNext = nullptr;
-					vi.flags = 0;
-					vi.vertexBindingDescriptionCount = _countof(binds);
-					vi.pVertexBindingDescriptions = binds;
-					vi.pVertexAttributeDescriptions = attrs;
-					vi.vertexAttributeDescriptionCount = _countof(attrs);
-					
-					// Vertex-Input Assybmly
-					VkPipelineInputAssemblyStateCreateInfo ia{};
-					ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-					ia.flags = 0;
-					ia.pNext = nullptr;
-					ia.primitiveRestartEnable = VK_FALSE;
-					// !! TEMPORARY
-					ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-					
-
-					// load and compile shaders...
-
-					VkPipelineShaderStageCreateInfo stages[] =
-					{
-						// VS
-						{
-							VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-							nullptr,
-							0,
-							VK_SHADER_STAGE_VERTEX_BIT,
-							CreateShaderModuleExt(device, allocator, "shaders/test.vert", ShaderType::Vertex),
-							"main",
-						},
-						// FS
-						{
-							VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-							nullptr,
-							0,
-							VK_SHADER_STAGE_FRAGMENT_BIT,
-							CreateShaderModuleExt(device, allocator, "shaders/test.frag", ShaderType::Fragment),
-							"main"
-						}
-					};
-
-					// Describe the Viewport State
-
-					VkRect2D scissor{};
-					scissor.extent = { width, height };
-					scissor.offset = { 0, 0 };
-
-					VkViewport viewport{};
-					viewport.width = width;
-					viewport.height = height;
-					viewport.minDepth = 0;
-					viewport.maxDepth = 1;
-					viewport.x = 0;
-					viewport.y = 0;
-						
-					VkPipelineViewportStateCreateInfo vs{};
-					vs.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-					vs.pNext = nullptr;
-					vs.flags = 0;
-					vs.viewportCount = 1;
-					vs.pViewports = &viewport;
-					vs.scissorCount = 1;
-					vs.pScissors = &scissor;
-
-					// Describe the Rasterization State
-					VkPipelineRasterizationStateCreateInfo rs{};
-					rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-					rs.pNext = nullptr;
-					rs.flags = 0;
-					rs.cullMode = VK_CULL_MODE_BACK_BIT;
-					rs.frontFace = VK_FRONT_FACE_CLOCKWISE;
-					rs.lineWidth = 1.0;
-					rs.polygonMode = VK_POLYGON_MODE_FILL;
-					
-					VkPipelineLayout pipelinelayout;
-
-					VkPipelineLayoutCreateInfo layout{};
-					layout.flags = 0;
-					layout.pNext = nullptr;
-					layout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-					
-					error = vkCreatePipelineLayout(device, &layout, allocator, &pipelinelayout);
-					check_vk_result(error);
-
-
-					VkPipelineMultisampleStateCreateInfo ms{};
-					ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-					ms.flags = 0;
-					ms.pNext = nullptr;
-					ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-					ms.sampleShadingEnable = VK_FALSE;
-					ms.minSampleShading = 1.0;
-					ms.pSampleMask = nullptr;
-					ms.alphaToCoverageEnable = VK_FALSE;
-					ms.alphaToOneEnable = VK_FALSE;
-
-					VkPipelineColorBlendAttachmentState blendAttachment = {};
-					blendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT; // Enable writing to all color channels
-					blendAttachment.blendEnable = VK_FALSE; // Disable blending for this attachment
-
-
-					VkPipelineColorBlendStateCreateInfo bs = {};
-					bs.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-					bs.logicOpEnable = VK_FALSE; // Disable logical operation for blending
-					bs.attachmentCount = 1; // Number of color attachments
-					bs.pAttachments = &blendAttachment;
-
-					// Global alpha and color blend factors
-					bs.blendConstants[0] = 0.0f; // R
-					bs.blendConstants[1] = 0.0f; // G
-					bs.blendConstants[2] = 0.0f; // B
-					bs.blendConstants[3] = 0.0f; // Alpha
-
-
-					VkGraphicsPipelineCreateInfo pipeline{};
-					pipeline.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-					pipeline.pNext = nullptr;
-					pipeline.flags = 0;
-					pipeline.basePipelineHandle = nullptr;
-					pipeline.stageCount = _countof(stages);
-					pipeline.pStages = stages;
-					pipeline.pVertexInputState = &vi;
-					pipeline.pInputAssemblyState = &ia;
-					pipeline.pRasterizationState = &rs;
-					pipeline.layout = pipelinelayout;
-					pipeline.pViewportState = &vs;
-					pipeline.pMultisampleState = &ms;
-					pipeline.renderPass = frame.RenderPass;
-					pipeline.pColorBlendState = &bs;
-					// tesselation
-					// depth/stencil
-					error = vkCreateGraphicsPipelines(device, nullptr, 1, &pipeline, allocator, &graphicsPipeline_STANDARD);
-					check_vk_result(error);
-				}
-
-				// Create Framebuffer
-				{
-					// describe framebuffer attachments
-					VkImageView attachments[] = {
-						frame.ColorBuffer.view,
-						//frame.DepthBuffer.view
-					};
-
-					VkFramebufferCreateInfo info{};
-					info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-					info.pNext = nullptr;
-					info.flags = 0;
-
-					info.attachmentCount = _countof(attachments);
-					info.pAttachments = attachments;
-					info.renderPass = frame.RenderPass;
-					info.width = width;
-					info.height = height;
-					info.layers = 1;
-
-					error = vkCreateFramebuffer(device, &info, allocator, &frame.Framebuffer);
-					check_vk_result(error);
-				}
-
-
-			}
-
+			Init();
 		}
 
 
 		Framebuffer::~Framebuffer()
 		{
-			auto device = Application::GetDevice();
-			auto allocator = Application::GetAllacator();
-
-			for (int i = 0; i < frameCount; i++)
-			{
-				vkDestroyImageView(device, frames[i].ColorBuffer.view, allocator);
-			
-				vkDestroyImage(device, frames[i].ColorBuffer.image, allocator);
-			
-				vkDestroyFramebuffer(device, frames[i].Framebuffer, allocator);
-
-			}
-
 			delete[] frames;
 		}
 
 		void Framebuffer::Render() {
+			HRESULT hr;
+			for (UINT64 i = 0; i < frameCount; ++i) {
 
+				auto& frame = frames[i];
+
+				hr = frame.commandAllocator.Reset();
+				CHECK(hr);
+				hr = frame.commandList->Reset(frame.commandAllocator.Get(), nullptr);
+				CHECK(hr);
+				// clear render target view
+				{
+					float clearColor[4]{ 0.7f, 0.4f ,0.3f, 1.0f };
+					CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), i, device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
+					frame.commandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
+				}
+
+
+				hr = frame.commandList->Close();
+				CHECK(hr);
+
+
+				ID3D12CommandList* const commandLists[] = {
+					frame.commandList.Get()
+				};
+
+				cmdQueue_DIRECT->ExecuteCommandLists(_countof(commandLists), commandLists);
+
+				// signal fence for current frame
+
+				cmdQueue_DIRECT->Signal(frame.fence.Get(), frame.frameFenceValue);
+
+				// wait for fence to complete 
+				if (frame.fence->GetCompletedValue() < frame.frameFenceValue) {
+					frame.fence->SetEventOnCompletion(frame.frameFenceValue, frame.fenceEvent);
+					WaitForSingleObject(frame.fenceEvent, (DWORD)UINT64_MAX);
+				}
+
+				// update fence value for next frame
+				frame.frameFenceValue++;
+			}
 
 		}
 
@@ -551,10 +302,7 @@ namespace Core {
 		{
 		}
 
-		VkDescriptorSet Framebuffer::GetColorBuffer()
-		{
-			return frames[currentFrameIndex].ColorBuffer.descriptor;
-		}
+		
 
 
 	}
